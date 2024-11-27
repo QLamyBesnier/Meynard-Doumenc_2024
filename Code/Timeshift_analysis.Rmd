@@ -1,0 +1,256 @@
+---
+title: "Oxidative stress constrains the evolution of phage host-range diversity in a microbial community"
+author: "Quentin Lamy-Besnier"
+date: "`r Sys.Date()`"
+output: 
+  html_document: 
+    fig_caption: yes
+    number_sections: yes
+    theme: united
+    toc: yes
+    toc_float:
+      collapsed: yes
+      smooth_scroll: yes
+  pdf_document:
+    toc: yes
+  word_document:
+    toc: yes
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Statistical analysis of the timeshift experiment of Meynard-Doumenc et al. 2024: Oxidative stress constrains the evolution of phage host-range diversity in a microbial community. 
+
+See https://github.com/QLamyBesnier/Meynard-Doumenc_2024 for more information.
+
+# Set-up
+
+## Packages
+
+Load the required packages:
+
+```{r Packages, message=FALSE, warning=FALSE}
+library(lme4)
+library(emmeans)
+library(tidyverse)
+library(blmeco)
+library(ggh4x)
+```
+
+## Data preparation
+
+Load the necessary data:
+
+```{r Data, message=FALSE, warning=FALSE}
+# load the data
+raw <- read.csv("Timeshift_fermenter.csv", header = TRUE, sep = ";")
+# add a new column which counts the total number of bacterial clones (used to control model overdispersion)
+raw$clone <- 1:nrow(raw)
+head(raw)
+```
+
+# Analysis without separating the bacteria
+
+First, let's perform the analysis without separating the 3 different bacteria (MG1655, LF82 and MEC1).
+
+## Graph
+
+Phage susceptibility for each bacterial timepoint. This recreates Figure 3A:
+
+```{r Figure 3A, message=FALSE, warning=FALSE}
+# create a new version of the data, which contains the % of susceptible/resistant instead of raw numbers
+percent <- raw %>% mutate(
+    susceptible_percent = (susceptible / (susceptible + resistant)) * 100,
+    resistant_percent = (resistant / (susceptible + resistant)) * 100
+  ) %>%
+  dplyr::select(-susceptible, -resistant, -clone)
+
+# compute the average susceptibility, resistance, and standard error of the mean for each treatment, phage timepoint and bacterial timepoint combination
+average <- group_by(percent, treatment, phage_tp, bacteria_tp, bacteria_tp_cat, phage_tp_cat) %>%
+  summarise(susceptible_avg = mean(susceptible_percent),
+            resistant_avg = mean(resistant_percent),
+            se = sd(susceptible_percent)/sqrt(length(susceptible_percent)),
+            .groups = 'drop')
+
+# change order of timepoints for chronological display on the graph
+average$bacteria_tp_cat <- factor(average$bacteria_tp_cat, levels = c("b_tp_4", "b_tp_7", "b_tp_10"))
+average$phage_tp_cat <- factor(average$phage_tp_cat, levels = c("p_tp_4", "p_tp_7", "p_tp_10"))
+
+# graph
+ggplot(average, aes(x = bacteria_tp_cat, y = susceptible_avg, group = interaction(bacteria_tp_cat, phage_tp_cat), color = phage_tp_cat)) +
+  geom_point(position = position_dodge(width = 1), alpha = 0.5) +
+  geom_errorbar(aes(x = bacteria_tp_cat, ymin = susceptible_avg-se, ymax = susceptible_avg+se), width = 0.2, position = position_dodge(width = 1), size = 1) +
+  geom_point(data = percent, aes(x = bacteria_tp_cat, y = susceptible_percent, group = interaction(bacteria_tp_cat, phage_tp_cat), color = phage_tp_cat), position = position_jitterdodge(dodge.width = 1, jitter.width = 0.2), alpha = 0.2) +
+  facet_wrap(~treatment, labeller = as_labeller(c(Control = "-H₂O₂", H2O2 = "+H₂O₂"))) +
+  geom_vline(xintercept = seq(1.5, length(unique(average$bacteria_tp_cat)) - 0.5), linetype = "dashed", color = "black") +
+  labs(x = "Bacterial timepoint", y = "Phage susceptibility (%)", color = "Phage timepoint") +
+  scale_color_discrete(labels = c("Day 4", "Day 7", "Day 10")) +
+  scale_x_discrete(labels = c("Day 4", "Day 7", "Day 10")) +
+  theme_bw() +
+  theme(strip.background = element_blank(), text = element_text(size = 15)) 
+```
+
+## Model
+
+Creating a binomial model with all the parameters, including the clonal variability:
+
+```{r Model, message=FALSE, warning=FALSE}
+glm_1 <- glmer(cbind(susceptible, resistant) ~ treatment * bacteria_tp_cat * phage_tp_cat + (1|fermenter) + (1|clone), 
+                           raw, 
+                           family = binomial,
+                           control = glmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 10000)))
+
+dispersion_glmer(glm_1)
+```
+
+There is no over- or underdispersion.
+
+Model simplification:
+
+```{r Model Simplification, message=FALSE, warning=FALSE}
+glm_2 <- glmer(cbind(susceptible, resistant) ~ treatment + bacteria_tp_cat + phage_tp_cat + phage_tp_cat:treatment + bacteria_tp_cat:treatment + bacteria_tp_cat:phage_tp_cat + (1|fermenter) + (1|clone), 
+                  raw, family = binomial, 
+                  control = glmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 10000)))
+
+anova(glm_1, glm_2)                  
+
+glm_3 <- glmer(cbind(susceptible, resistant) ~ treatment + bacteria_tp_cat + phage_tp_cat + phage_tp_cat:treatment + bacteria_tp_cat:treatment + (1|fermenter) + (1|clone), 
+                  raw, family = binomial, 
+                  control = glmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 10000)))
+
+anova(glm_2, glm_3)
+
+glm_4 <- glmer(cbind(susceptible, resistant) ~ treatment + bacteria_tp_cat + phage_tp_cat + bacteria_tp_cat:treatment + (1|fermenter) + (1|clone), 
+                  raw, family = binomial, 
+                  control = glmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 10000)))
+
+anova(glm_3, glm_4)
+
+glm_5 <- glmer(cbind(susceptible, resistant) ~ treatment + bacteria_tp_cat + phage_tp_cat + (1|fermenter) + (1|clone), 
+                  raw, family = binomial, 
+                  control = glmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 10000)))
+anova(glm_4, glm_5)
+```
+
+The model "glm_4" is the best:
+
+`susceptible/resistant ~ bacteria_tp_cat + treatment + phage_tp_cat + bacteria_tp_cat:treatment + (1|fermenter) + (1|clone)`
+
+## Post-Hoc tests
+
+Post-hoc tests for the different variables, using the Tukey-HSD post-hoc test.
+
+### Phage Timepoints
+
+```{r Post-Hoc phage timepoint, message=FALSE, warning=FALSE}
+emmeans(glm_4, pairwise ~ phage_tp_cat, type = "response")
+```
+
+### Bacterial Timepoints
+
+```{r Post-Hoc bacteria timepoint, message=FALSE, warning=FALSE}
+emmeans(glm_4, pairwise ~ bacteria_tp_cat|treatment, type = "response")
+```
+
+### Treatment
+
+```{r Post-Hoc treatment, message=FALSE, warning=FALSE}
+emmeans(glm_4, pairwise ~ treatment|bacteria_tp_cat, type = "response")
+```
+
+# Analysis taking into account the 3 bacteria
+
+Adding the "bacteria" (MG1655, LF82, MEC1) parameter to the analysis.
+
+## Graphs
+
+Phage susceptibility for each bacterial timepoint, separated by bacteria and condition. This recreates figure 3B.
+
+```{r Figure 3B, message=FALSE, warning=FALSE}
+# group without the different phage timepoints
+average3 <- group_by(percent, treatment, bacteria, bacteria_tp, bacteria_tp_cat) %>%
+  summarise(susceptible_avg = mean(susceptible_percent),
+            resistant_avg = mean(resistant_percent),
+            se = sd(susceptible_percent)/sqrt(length(susceptible_percent)),
+            .groups = 'drop')
+
+# graph
+ggplot(average3, aes(x = bacteria_tp_cat, y = susceptible_avg, group = interaction(bacteria_tp_cat, treatment), color = treatment)) +
+  geom_point(position = position_dodge(width = 1), alpha = 0.5) +
+  geom_errorbar(aes(x = bacteria_tp_cat, ymin = susceptible_avg-se, ymax = susceptible_avg+se), width = 0.2, position = position_dodge(width = 1), size = 1) +
+  geom_point(data = percent, aes(x = bacteria_tp_cat, y = susceptible_percent, group = interaction(bacteria_tp_cat, treatment), color = treatment), position = position_jitterdodge(dodge.width = 1, jitter.width = 0.2), alpha = 0.2) +
+  facet_nested(~bacteria+treatment, labeller = as_labeller(c(Control = "-H₂O₂", H2O2 = "+H₂O₂", LF82 = "LF82", MEC1 = "MEC1", MG1655 = "MG1655"))) +
+  scale_x_discrete(labels = c("D4", "D7", "D10")) +
+  scale_color_manual(labels = c("-H₂O₂", "+H₂O₂"), values = c("cornflowerblue", "indianred")) +
+  labs(x = "Bacterial timepoint", y = "Phage susceptibility (%)", color = "Treatment") +
+  ylim(c(0, 100)) +
+  theme_bw() +
+  theme(strip.background = element_blank(), text = element_text(size = 15))
+```
+
+These are just a few examples, we will adapt depending on the message of the paper. The individual points, representing the % of phage susceptibility for each clone across the different phage clones tested, could be removed from the graph, to be discussed (as for any other graph change).
+
+## Model
+
+We update the previous "glm_4" with the "bacteria" variable.
+
+```{r Bacteria Model, message=FALSE, warning=FALSE}
+b_glm_1 <-  glmer(cbind(susceptible, resistant) ~ bacteria * bacteria_tp_cat * treatment + phage_tp_cat + bacteria:phage_tp_cat + (1|fermenter) + (1|clone), 
+                  raw, family = binomial, 
+                  control = glmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 10000)))
+
+dispersion_glmer(b_glm_1)
+```
+
+Model simplification:
+
+```{r Bacteria Model Simplification, message=FALSE, warning=FALSE}
+b_glm_2 <-  glmer(cbind(susceptible, resistant) ~ bacteria + bacteria_tp_cat + treatment + phage_tp_cat + bacteria:bacteria_tp_cat + bacteria:treatment + bacteria_tp_cat:treatment + bacteria:phage_tp_cat + (1|fermenter) + (1|clone), 
+                  raw, family = binomial, 
+                  control = glmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 10000)))
+
+anova(b_glm_1, b_glm_2)
+
+b_glm_3 <-  glmer(cbind(susceptible, resistant) ~ bacteria * bacteria_tp_cat * treatment + phage_tp_cat + (1|fermenter) + (1|clone), 
+                  raw, family = binomial, 
+                  control = glmerControl(optimizer="bobyqa", optCtrl = list(maxfun = 10000)))
+
+anova(b_glm_1, b_glm_3) 
+```
+
+No further model simplifications are possible, so the best model is "b_glm_3":
+
+`susceptible/resistant ~ bacteria * bacteria_tp_cat * treatment + phage_tp_cat + (1|fermenter) + (1|clone)`
+
+## Post-Hoc tests
+
+Post-hoc tests for the different variables, using the Tukey-HSD post-hoc test.
+
+### Phage timepoints
+
+```{r Post Hoc phage timepoint 2, message=FALSE, warning=FALSE}
+emmeans(b_glm_3, pairwise ~ phage_tp_cat, type = "response")
+```
+
+### Bacteria timepoints
+
+```{r Post Hoc bacteria timepoint 2, message=FALSE, warning=FALSE}
+emmeans(b_glm_3, pairwise ~ bacteria_tp_cat|treatment*bacteria, type = "response")
+```
+
+### Treatment
+
+```{r Post Hoc treatment 2, message=FALSE, warning=FALSE}
+emmeans(b_glm_3, pairwise ~ treatment|bacteria*bacteria_tp_cat, type = "response")
+```
+
+### Bacteria
+
+```{r Post Hoc bacteria, message=FALSE, warning=FALSE}
+emmeans(b_glm_3, pairwise ~ bacteria|treatment*bacteria_tp_cat, type = "response")
+```
+
