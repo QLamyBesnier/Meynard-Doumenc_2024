@@ -14,7 +14,7 @@ It is composed of a single file, *Timeshift_fermenter.csv*, which is a csv table
 
 The code corresponding to the data analysis can be found in the "Code" folder.
 
-It is composed of a single RMarkdown file, *Timeshift_analysis.Rmd* which generates the figures found in the manuscript for the timeshift analysis (figures 3A and 3B)
+It is composed of a single RMarkdown file, *Timeshift_analysis.Rmd* which generates the figures found in the manuscript for the timeshift analysis (figures 3A and 3B).
 
 ### Issues
 
