@@ -27,7 +27,7 @@ The code corresponding to the data analysis can be found in the "Code" folder.
 It is composed of a 2 RMarkdown file, one per analysis:
 
 - *Timeshift_analysis.Rmd*: generates the figures found in the manuscript for the timeshift analysis (figures 3A and 3B).
-- *Mutations.Rmd*: generates the results of mutations analysis.
+- *Mutations.Rmd*: generates the results of mutations analysis (*Genomic mutations are associated to the evolution P10 host range* section in the manuscript).
 
 ### Issues
 
