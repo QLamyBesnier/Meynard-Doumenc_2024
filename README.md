@@ -4,17 +4,30 @@ _Meynard-Doumenc et al. (2024) Oxidative stress constrains the evolution of phag
 
 available on BioRXiv: LINK
 
+There are two independant analysis:
+
+- The analysis of the timeshift experiment.
+- The analysis of the mutations present in the bacterial and phage clones.
+
 ### Data
 
 The data necessary to reproduce the analysis can be found in the "Data" folder.
 
-It is composed of a single file, *Timeshift_fermenter.csv*, which is a csv table containing the counts of each OTU in each sample.
+It is composed of a 4 files :
+
+- *Timeshift_fermenter.csv*: a csv table containing the counts of each OTU in each sample. It is the only file required for the timeshift experiment analysis.
+- *Bacteria_mutations_matrix.csv*: a csv table containing the list of mutations for each bacterial clone. Required for the analysis of the mutations.
+- *Phage_mutations_matrix.csv*: a csv table containing the list of mutations for each phage clone. Required for the analysis of the mutations.
+- *Interaction_matrix.csv*: a csv table containing which contains the infectivity each phage/bacteria couple (0 = no infection, 1 = infection). Required for the analysis of the mutations.
 
 ### Code
 
 The code corresponding to the data analysis can be found in the "Code" folder.
 
-It is composed of a single RMarkdown file, *Timeshift_analysis.Rmd* which generates the figures found in the manuscript for the timeshift analysis (figures 3A and 3B).
+It is composed of a 2 RMarkdown file, one per analysis:
+
+- *Timeshift_analysis.Rmd*: generates the figures found in the manuscript for the timeshift analysis (figures 3A and 3B).
+- *Mutations.Rmd*: generates the results of mutations analysis.
 
 ### Issues
 
