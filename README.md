@@ -2,8 +2,6 @@
 
 _Meynard-Doumenc et al. (2024) Oxidative stress constrains the evolution of phage host-range diversity in a microbial community_
 
-available on BioRXiv: LINK
-
 There are two independant analysis:
 
 - The analysis of the timeshift experiment.
